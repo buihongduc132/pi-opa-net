@@ -14,3 +14,5 @@ node_modules/
 .pi-opa-net/
 .pi-subagents/
 .pi/
+.fusion
+.pi
