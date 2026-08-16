@@ -13,7 +13,7 @@
  * CVE references: CVE-2026-55607, CVE-2024-32002 (path traversal), OWASP Path Traversal.
  */
 
-import { realpathSync, existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { sep } from 'node:path';
 
 /** Check if a path exists (for walking up to find existing parent). */
@@ -30,8 +30,12 @@ function resolveWithWalkUp(target: string): string | null {
   try {
     return realpathSync(target);
   } catch {
-    const { dirname, basename, join: joinPath, sep: pathSep } =
-      require('node:path') as typeof import('node:path');
+    const {
+      dirname,
+      basename,
+      join: joinPath,
+      sep: pathSep,
+    } = require('node:path') as typeof import('node:path');
     let current = target;
     const tailParts: string[] = [];
     while (current !== pathSep && current !== '.' && !pathExists(current)) {
@@ -87,7 +91,12 @@ export function canonicalizePath(
     resolvedTarget = realpathSync(target);
   } catch {
     // Walk up to find the deepest existing ancestor, collecting the non-existent tail.
-    const { dirname, basename, join: joinPath, sep: pathSep } = require('node:path') as typeof import('node:path');
+    const {
+      dirname,
+      basename,
+      join: joinPath,
+      sep: pathSep,
+    } = require('node:path') as typeof import('node:path');
     let current = target;
     const tailParts: string[] = [];
     while (current !== pathSep && current !== '.' && !pathExists(current)) {
@@ -96,7 +105,8 @@ export function canonicalizePath(
     }
     try {
       const resolvedAncestor = realpathSync(current);
-      resolvedTarget = tailParts.length > 0 ? joinPath(resolvedAncestor, ...tailParts) : resolvedAncestor;
+      resolvedTarget =
+        tailParts.length > 0 ? joinPath(resolvedAncestor, ...tailParts) : resolvedAncestor;
     } catch {
       return {
         allowed: false,

@@ -8,16 +8,16 @@ import {
 } from '../engine/index.ts';
 import { DecisionBuilder, type DecisionOutput } from '../output/DecisionBuilder.ts';
 import { OutputFormatter, validateDecision } from '../output/OutputFormatter.ts';
+import { classifyCheckoutTarget } from '../parser/checkoutTarget.ts';
 import type { CommandParser, ParsedCommand } from '../parser/index.ts';
 import { CommandParserCoordinator } from '../parser/index.ts';
-import { classifyCheckoutTarget } from '../parser/checkoutTarget.ts';
 import { RULES, RuleRegistry } from '../rules/index.ts';
 import {
   EnvSignals,
   RepoSignals,
+  type Signals,
   WorktreeSignals,
   collectAll,
-  type Signals,
 } from '../signals/index.ts';
 import type { SignalContext } from '../signals/types.ts';
 import { SaltResolver } from '../unlock/SaltResolver.ts';
@@ -159,7 +159,13 @@ async function evaluatePossiblyCompound(
     const effectiveCwd = parsed.gitCwd ?? baseCwd;
     const signals = collectSignals(parsed, effectiveCwd, segment, config, collectors);
     const engineDecision = await engine.evaluate(parsed, signals);
-    const output = buildDecision(parsed, engineDecision, { config, builder, unlockKeys, hasKeys, signals });
+    const output = buildDecision(parsed, engineDecision, {
+      config,
+      builder,
+      unlockKeys,
+      hasKeys,
+      signals,
+    });
     if (output.decision === 'deny' && output.action === 'block') {
       denyOutput = output;
       break; // first deny wins
@@ -173,7 +179,13 @@ async function evaluatePossiblyCompound(
   // All segments allowed — return an allow decision based on the first segment.
   const firstParsed = parser.parse(segments[0] ?? '');
   const firstEffectiveCwd = firstParsed.gitCwd ?? baseCwd;
-  const firstSignals = collectSignals(firstParsed, firstEffectiveCwd, segments[0] ?? '', config, collectors);
+  const firstSignals = collectSignals(
+    firstParsed,
+    firstEffectiveCwd,
+    segments[0] ?? '',
+    config,
+    collectors,
+  );
   const firstEngineDecision = await engine.evaluate(firstParsed, firstSignals);
   return buildDecision(firstParsed, firstEngineDecision, {
     config,

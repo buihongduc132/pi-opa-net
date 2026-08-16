@@ -128,6 +128,133 @@ const DENY_CASES: ExpectDeny[] = [
     ruleId: 'block-herdr-server-stop',
     family: 'herdr',
   },
+  // GROUP I — pulumi IaC safety.
+  {
+    command: 'pulumi up --force',
+    ruleId: 'block-pulumi-up-force',
+    family: 'pulumi',
+  },
+  {
+    command: 'pulumi up -y',
+    ruleId: 'block-pulumi-up-force',
+    family: 'pulumi',
+  },
+  {
+    command: 'pulumi destroy',
+    ruleId: 'block-pulumi-destroy',
+    family: 'pulumi',
+  },
+  {
+    command: 'pulumi stack rm prod',
+    ruleId: 'block-pulumi-stack-rm',
+    family: 'pulumi',
+  },
+  {
+    command: 'pulumi state delete urn:foo',
+    ruleId: 'block-pulumi-state-delete',
+    family: 'pulumi',
+  },
+  // GROUP J — DevOps destructive-CLI coverage.
+  {
+    command: 'terraform destroy',
+    ruleId: 'block-iac-destroy',
+    family: 'iac',
+  },
+  {
+    command: 'terraform apply -auto-approve',
+    ruleId: 'block-iac-apply-autoapprove',
+    family: 'iac',
+  },
+  {
+    command: 'tofu destroy',
+    ruleId: 'block-iac-destroy',
+    family: 'iac',
+  },
+  {
+    command: 'terragrunt run destroy',
+    ruleId: 'block-terragrunt-run-destroy',
+    family: 'iac',
+  },
+  {
+    command: 'terraform state rm some.resource',
+    ruleId: 'block-iac-state-rm',
+    family: 'iac',
+  },
+  {
+    command: 'nomad job stop api',
+    ruleId: 'block-nomad-job-stop',
+    family: 'nomad',
+  },
+  {
+    command: 'nomad system gc',
+    ruleId: 'block-nomad-system-gc',
+    family: 'nomad',
+  },
+  {
+    command: 'nomad node drain -enable node1',
+    ruleId: 'block-nomad-node-drain',
+    family: 'nomad',
+  },
+  {
+    command: 'consul kv delete foo/bar',
+    ruleId: 'block-consul-kv-delete',
+    family: 'consul',
+  },
+  {
+    command: 'consul leave',
+    ruleId: 'block-consul-leave',
+    family: 'consul',
+  },
+  {
+    command: 'vault kv delete secret/foo',
+    ruleId: 'block-vault-kv-delete',
+    family: 'vault',
+  },
+  {
+    command: 'vault secrets disable pki',
+    ruleId: 'block-vault-engine-disable',
+    family: 'vault',
+  },
+  {
+    command: 'vault token revoke abc',
+    ruleId: 'block-vault-revoke',
+    family: 'vault',
+  },
+  {
+    command: 'vault seal',
+    ruleId: 'block-vault-seal',
+    family: 'vault',
+  },
+  {
+    command: 'aws ec2 terminate-instances --instance-ids i-1',
+    ruleId: 'block-aws-destructive-verbs',
+    family: 'aws',
+  },
+  {
+    command: 'aws s3 rm s3://bucket/key',
+    ruleId: 'block-aws-s3-rm',
+    family: 'aws',
+  },
+  {
+    command: 'pm2 kill',
+    ruleId: 'block-pm2-kill',
+    family: 'svcman',
+  },
+  {
+    command: 'systemctl stop nginx',
+    ruleId: 'block-systemctl-stop',
+    family: 'svcman',
+  },
+  {
+    command: 'dd if=/dev/zero of=/dev/sda',
+    ruleId: 'block-dd-of-dev',
+    family: 'dd',
+  },
+  {
+    command: 'docker-compose --project-name=litellm down',
+    ruleId: 'block-docker-compose-down-litellm',
+    family: 'docker',
+  },
   {
     command: 'herdr session stop foo',
     ruleId: 'block-herdr-session-stop',
@@ -166,6 +293,20 @@ const ALLOW_CASES: ExpectAllow[] = [
   { command: 'git status' }, // not blocked
   { command: 'docker ps' }, // not blocked
   { command: 'ls -la' }, // not blocked
+  { command: 'pulumi preview' }, // read-only IaC op stays allowed
+  { command: 'pulumi up' }, // interactive up (with preview) stays allowed
+  { command: 'terraform plan' }, // read-only IaC plan
+  { command: 'terraform state list' }, // read-only state listing
+  { command: 'nomad job status api' }, // read-only Nomad status
+  { command: 'consul kv get foo/bar' }, // read-only Consul KV
+  { command: 'vault kv get secret/foo' }, // read-only Vault read
+  { command: 'vault status' },
+  { command: 'aws s3 ls' }, // read-only AWS listing
+  { command: 'pm2 list' }, // read-only pm2 status
+  { command: 'systemctl status nginx' }, // read-only systemd status
+  { command: 'systemctl daemon-reload' }, // safe systemd op
+  { command: 'dd if=/dev/zero of=/tmp/img' }, // dd to regular file stays allowed
+  { command: 'docker-compose --project-name=litellm ps' }, // read-only compose status
   // GROUP G carve-outs (cc-safety-net parity).
   // RED: the engine must NOT deny these read-only / unrelated targets once the
   // new tmux/pkill/killall rules land. They will pass today because the rules

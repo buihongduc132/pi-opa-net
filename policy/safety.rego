@@ -501,6 +501,258 @@ deny[msg] if {
 }
 
 # ──────────────────────────────────────────────────────────────────
+# GROUP I — pulumi IaC safety
+# (pulumi up --force / auto-approve bypasses the deployment preview;
+#  destroy / stack rm / state delete are irreversible stack operations.)
+# ──────────────────────────────────────────────────────────────────
+
+# Block `pulumi up --force` and preview-bypassing flags.
+deny[msg] if {
+    input.program == "pulumi"
+    input.subcommand == "up"
+    has_any_arg(input.args, ["--force", "-f", "--skip-preview", "--yes", "-y"])
+    msg := "pulumi up with --force/--yes/--skip-preview bypasses the deployment preview and applies changes without review. Run `pulumi preview` and apply only with explicit approval."
+}
+
+# Block `pulumi destroy` — tears down every resource in the stack.
+deny[msg] if {
+    input.program == "pulumi"
+    input.subcommand == "destroy"
+    msg := "pulumi destroy tears down ALL resources in the stack. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+# Block `pulumi stack rm` — deletes the stack and its state.
+deny[msg] if {
+    input.program == "pulumi"
+    input.subcommand == "stack"
+    has_any_arg(input.args, ["rm", "remove"])
+    msg := "pulumi stack rm deletes the stack and its state. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+# Block `pulumi state delete` — removes resources from state (orphans real infra).
+deny[msg] if {
+    input.program == "pulumi"
+    input.subcommand == "state"
+    has_any_arg(input.args, ["delete", "unprotect"])
+    msg := "pulumi state delete/unprotect mutates stack state and can orphan or expose real infrastructure. Do NOT run this automatically."
+}
+
+# ──────────────────────────────────────────────────────────────────
+# GROUP J — DevOps destructive-CLI coverage
+# (terraform/tofu/terragrunt, nomad, consul, vault, aws, pm2,
+#  systemctl, dd; plus docker-compose v1 binary GROUP C parity.)
+# All literal messages (Approach A): parity-test safe + LD-L1 stable
+# rule_ids for unlock keys.
+# ──────────────────────────────────────────────────────────────────
+
+iac_programs := {"terraform", "tofu", "terragrunt"}
+
+# Auto-approve flag in either exact or =value form.
+iac_autoapprove(args) if {
+    has_any_arg(args, ["-auto-approve", "--auto-approve", "-y"])
+}
+iac_autoapprove(args) if {
+    has_arg_prefix(args, ["-auto-approve=", "--auto-approve="])
+}
+
+deny[msg] if {
+    input.program in iac_programs
+    input.subcommand == "destroy"
+    msg := "terraform/tofu/terragrunt destroy tears down ALL resources managed by the stack. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program in iac_programs
+    input.subcommand == "apply"
+    iac_autoapprove(input.args)
+    msg := "terraform/tofu/terragrunt apply -auto-approve bypasses the plan review prompt. Run `terraform plan` and apply only with explicit approval."
+}
+
+deny[msg] if {
+    input.program in iac_programs
+    input.subcommand == "state"
+    has_any_arg(input.args, ["rm", "delete"])
+    msg := "terraform/tofu/terragrunt state rm/delete removes resources from state and can orphan real infrastructure. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "terragrunt"
+    input.subcommand == "run"
+    has_any_arg(input.args, ["destroy"])
+    msg := "terragrunt run destroy applies a destroy plan across the module tree. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "terragrunt"
+    input.subcommand == "run"
+    has_any_arg(input.args, ["apply"])
+    iac_autoapprove(input.args)
+    msg := "terragrunt run apply --auto-approve bypasses plan review across every module in the tree. Apply only with explicit approval."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "job"
+    has_any_arg(input.args, ["stop", "deregister"])
+    msg := "nomad job stop/deregister tears down scheduled work. Re-deploy via the Nomad job specification instead of manual stops."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "alloc"
+    has_any_arg(input.args, ["stop", "signal", "restart"])
+    msg := "Direct alloc stop/signal/restart bypasses scheduler safety. Use deployment-level operations instead."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "system"
+    has_any_arg(input.args, ["gc"])
+    msg := "nomad system gc force-garbage-collects the cluster and can disrupt running work. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "node"
+    has_any_arg(input.args, ["drain", "eligibility"])
+    msg := "nomad node drain/eligibility evicts all allocations from a node. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "deployment"
+    has_any_arg(input.args, ["fail", "pause"])
+    msg := "nomad deployment fail/pause aborts a rolling deployment mid-flight. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "nomad"
+    input.subcommand == "volume"
+    has_any_arg(input.args, ["detach"])
+    msg := "nomad volume detach detaches storage from running work. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "consul"
+    input.subcommand == "kv"
+    has_any_arg(input.args, ["delete"])
+    msg := "consul kv delete removes cluster configuration state. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "consul"
+    input.subcommand == "services"
+    has_any_arg(input.args, ["deregister"])
+    msg := "consul services deregister breaks service discovery for the node. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "consul"
+    input.subcommand in {"leave", "force-leave"}
+    msg := "consul leave/force-leave removes the agent from the cluster. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "consul"
+    input.subcommand == "operator"
+    has_any_arg(input.args, ["remove-peer"])
+    msg := "consul operator raft remove-peer mutates Raft consensus membership. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "vault"
+    input.subcommand == "kv"
+    has_any_arg(input.args, ["delete", "destroy"])
+    msg := "vault kv delete/destroy removes secret data. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "vault"
+    input.subcommand in {"secrets", "auth"}
+    has_any_arg(input.args, ["disable"])
+    msg := "vault secrets/auth disable turns off a secrets engine or auth method. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "vault"
+    input.subcommand in {"token", "lease"}
+    has_any_arg(input.args, ["revoke"])
+    msg := "vault token/lease revoke invalidates credentials. Do NOT run this automatically."
+}
+
+deny[msg] if {
+    input.program == "vault"
+    input.subcommand == "seal"
+    msg := "vault seal makes the Vault sealed and unavailable. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "vault"
+    input.subcommand == "operator"
+    has_any_arg(input.args, ["remove-peer"])
+    msg := "vault operator raft remove-peer mutates Raft consensus membership. Do NOT run this automatically."
+}
+
+aws_blocked_verbs := [
+    "terminate-instances", "stop-instances", "delete-bucket",
+    "delete-stack", "delete-table", "delete-db-cluster", "delete-log-group",
+]
+
+deny[msg] if {
+    input.program == "aws"
+    some v in aws_blocked_verbs
+    has_any_arg(input.args, [v])
+    msg := "Destructive AWS operation tokens (terminate/stop/delete class) are blocked by default. Use read-only describe/list/get operations."
+}
+
+deny[msg] if {
+    input.program == "aws"
+    has_any_arg(input.args, ["s3"])
+    has_any_arg(input.args, ["rm", "rb"])
+    msg := "aws s3 rm/rb deletes objects or buckets. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "pm2"
+    has_any_arg(input.args, ["kill", "delete", "stop", "restart"])
+    msg := "pm2 kill/delete/stop/restart affects every managed node service. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "systemctl"
+    has_any_arg(input.args, ["stop", "kill", "mask", "disable", "isolate"])
+    msg := "systemctl stop/kill/mask/disable/isolate affects host services. Do NOT run this automatically — hand the exact command back to the user."
+}
+
+deny[msg] if {
+    input.program == "dd"
+    has_arg_prefix(input.args, ["of=/dev/"])
+    msg := "dd writing to a raw block device (of=/dev/*) can destroy disks beyond recovery. Do NOT run this automatically."
+}
+
+# docker-compose v1 standalone binary — GROUP C parity (parser keeps it
+# flat-arg-shaped; flag-first forms never yield subcommand="compose").
+deny[msg] if {
+    input.program == "docker-compose"
+    has_any_arg(input.args, ["down"])
+    has_arg_prefix(input.args, litellm_projects)
+    msg := "NEVER bring down litellm/litellm-local/omniroute via docker compose."
+}
+
+deny[msg] if {
+    input.program == "docker-compose"
+    has_any_arg(input.args, ["rm"])
+    has_arg_prefix(input.args, litellm_projects)
+    msg := "NEVER remove litellm/litellm-local/omniroute containers via docker compose."
+}
+
+deny[msg] if {
+    input.program == "docker-compose"
+    has_arg_prefix(input.args, litellm_targets)
+    msg := "NEVER stop litellm/litellm-local/omniroute via docker compose --target."
+}
+
+# ──────────────────────────────────────────────────────────────────
 # GROUP G — branch-target-allowlist (LD1)
 # Deny git checkout/switch <X> when X ∉ allowed set AND in main worktree.
 # signals.repo.is_main_worktree must be true (sub-worktrees roam free).

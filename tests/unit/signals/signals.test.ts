@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
+import type { ParsedCommand } from '../../../src/parser/types.ts';
 import { EnvSignals } from '../../../src/signals/EnvSignals.ts';
 import { RepoSignals } from '../../../src/signals/RepoSignals.ts';
 import { WorktreeSignals, parseWorktreePath } from '../../../src/signals/WorktreeSignals.ts';
 import { collectAll } from '../../../src/signals/collectAll.ts';
-import type { ParsedCommand } from '../../../src/parser/types.ts';
 
 const makeParsed = (program: string, subcommand: string, args: string[] = []): ParsedCommand => ({
   raw: `${program} ${subcommand} ${args.join(' ')}`.trim(),
@@ -71,6 +71,22 @@ describe('WorktreeSignals', () => {
     );
     expect(result.available).toBe(true);
     expect(result.target_path).toBe('.worktrees/feat');
+  });
+
+  it('add with commit-ish: path-first form `.worktrees/feat HEAD` → path, not ref', () => {
+    const collector = new WorktreeSignals();
+    const result = collector.collect(
+      makeCtx('git', 'worktree', ['add', '.worktrees/feat', 'HEAD']),
+    );
+    expect(result.available).toBe(true);
+    expect(result.target_path).toBe('.worktrees/feat');
+  });
+
+  it('add old-style form `HEAD ../feat` → picks path-like positional', () => {
+    const collector = new WorktreeSignals();
+    const result = collector.collect(makeCtx('git', 'worktree', ['add', 'HEAD', '../feat']));
+    expect(result.available).toBe(true);
+    expect(result.target_path).toBe('../feat');
   });
 
   it('extracts new-path from git worktree move', () => {

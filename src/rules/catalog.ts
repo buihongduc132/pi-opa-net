@@ -264,6 +264,183 @@ export const RULES: readonly RuleMeta[] = [
     message:
       'Closing a herdr workspace destroys active agent state. Do NOT run this automatically \u2014 hand the exact command back to the user.',
   },
+  // ── GROUP I: pulumi IaC ──
+  {
+    ruleId: 'block-pulumi-up-force',
+    family: 'pulumi',
+    message:
+      'pulumi up with --force/--yes/--skip-preview bypasses the deployment preview and applies changes without review. Run `pulumi preview` and apply only with explicit approval.',
+    suggestions: ['pulumi preview', 'pulumi up'],
+  },
+  {
+    ruleId: 'block-pulumi-destroy',
+    family: 'pulumi',
+    message:
+      'pulumi destroy tears down ALL resources in the stack. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-pulumi-stack-rm',
+    family: 'pulumi',
+    message:
+      'pulumi stack rm deletes the stack and its state. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-pulumi-state-delete',
+    family: 'pulumi',
+    message:
+      'pulumi state delete/unprotect mutates stack state and can orphan or expose real infrastructure. Do NOT run this automatically.',
+  },
+  // ── GROUP J: DevOps destructive-CLI ──
+  {
+    ruleId: 'block-iac-destroy',
+    family: 'iac',
+    message:
+      'terraform/tofu/terragrunt destroy tears down ALL resources managed by the stack. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-iac-apply-autoapprove',
+    family: 'iac',
+    message:
+      'terraform/tofu/terragrunt apply -auto-approve bypasses the plan review prompt. Run `terraform plan` and apply only with explicit approval.',
+    suggestions: ['terraform plan'],
+  },
+  {
+    ruleId: 'block-iac-state-rm',
+    family: 'iac',
+    message:
+      'terraform/tofu/terragrunt state rm/delete removes resources from state and can orphan real infrastructure. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-terragrunt-run-destroy',
+    family: 'iac',
+    message:
+      'terragrunt run destroy applies a destroy plan across the module tree. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-terragrunt-run-apply-autoapprove',
+    family: 'iac',
+    message:
+      'terragrunt run apply --auto-approve bypasses plan review across every module in the tree. Apply only with explicit approval.',
+  },
+  {
+    ruleId: 'block-nomad-job-stop',
+    family: 'nomad',
+    message:
+      'nomad job stop/deregister tears down scheduled work. Re-deploy via the Nomad job specification instead of manual stops.',
+  },
+  {
+    ruleId: 'block-nomad-alloc-stop',
+    family: 'nomad',
+    message:
+      'Direct alloc stop/signal/restart bypasses scheduler safety. Use deployment-level operations instead.',
+  },
+  {
+    ruleId: 'block-nomad-system-gc',
+    family: 'nomad',
+    message:
+      'nomad system gc force-garbage-collects the cluster and can disrupt running work. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-nomad-node-drain',
+    family: 'nomad',
+    message:
+      'nomad node drain/eligibility evicts all allocations from a node. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-nomad-deployment-fail',
+    family: 'nomad',
+    message:
+      'nomad deployment fail/pause aborts a rolling deployment mid-flight. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-nomad-volume-detach',
+    family: 'nomad',
+    message:
+      'nomad volume detach detaches storage from running work. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-consul-kv-delete',
+    family: 'consul',
+    message:
+      'consul kv delete removes cluster configuration state. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-consul-services-deregister',
+    family: 'consul',
+    message:
+      'consul services deregister breaks service discovery for the node. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-consul-leave',
+    family: 'consul',
+    message:
+      'consul leave/force-leave removes the agent from the cluster. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-consul-operator-remove-peer',
+    family: 'consul',
+    message:
+      'consul operator raft remove-peer mutates Raft consensus membership. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-vault-kv-delete',
+    family: 'vault',
+    message:
+      'vault kv delete/destroy removes secret data. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-vault-engine-disable',
+    family: 'vault',
+    message:
+      'vault secrets/auth disable turns off a secrets engine or auth method. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-vault-revoke',
+    family: 'vault',
+    message: 'vault token/lease revoke invalidates credentials. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-vault-seal',
+    family: 'vault',
+    message:
+      'vault seal makes the Vault sealed and unavailable. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-vault-operator-remove-peer',
+    family: 'vault',
+    message:
+      'vault operator raft remove-peer mutates Raft consensus membership. Do NOT run this automatically.',
+  },
+  {
+    ruleId: 'block-aws-destructive-verbs',
+    family: 'aws',
+    message:
+      'Destructive AWS operation tokens (terminate/stop/delete class) are blocked by default. Use read-only describe/list/get operations.',
+  },
+  {
+    ruleId: 'block-aws-s3-rm',
+    family: 'aws',
+    message:
+      'aws s3 rm/rb deletes objects or buckets. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-pm2-kill',
+    family: 'svcman',
+    message:
+      'pm2 kill/delete/stop/restart affects every managed node service. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-systemctl-stop',
+    family: 'svcman',
+    message:
+      'systemctl stop/kill/mask/disable/isolate affects host services. Do NOT run this automatically \u2014 hand the exact command back to the user.',
+  },
+  {
+    ruleId: 'block-dd-of-dev',
+    family: 'dd',
+    message:
+      'dd writing to a raw block device (of=/dev/*) can destroy disks beyond recovery. Do NOT run this automatically.',
+  },
 ];
 
 /** gcloud/bq produce sprintf messages — family inferred from program.
@@ -284,6 +461,10 @@ export function inferFamilyFromProgram(program: string): RuleFamily {
       return 'killall';
     case 'herdr':
       return 'herdr';
+    case 'pulumi':
+      return 'pulumi';
+    case 'docker-compose':
+      return 'docker';
     default:
       return 'custom';
   }

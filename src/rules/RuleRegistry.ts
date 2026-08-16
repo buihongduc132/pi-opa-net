@@ -14,7 +14,15 @@ export type RuleFamily =
   | 'tmux'
   | 'pkill'
   | 'killall'
-  | 'herdr';
+  | 'herdr'
+  | 'pulumi'
+  | 'iac'
+  | 'nomad'
+  | 'consul'
+  | 'vault'
+  | 'aws'
+  | 'svcman'
+  | 'dd';
 
 export interface RuleMeta {
   readonly ruleId: string;

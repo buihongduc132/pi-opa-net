@@ -21,7 +21,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  opa-net (framework)                                        │
 │  - OPA/Rego engine                                          │
-│  - 42-rule catalog (cc-safety-net parity)                   │
+│  - 75-rule catalog (cc-safety-net parity + GROUP I/J)       │
 │  - Unlock-key capability system                             │
 │  - Output: decision-output.v1 schema                        │
 │  - Fail-mode: open/closed                                   │
@@ -102,7 +102,7 @@ pi-opa-net unlock-key --list
 | `src/cli/run.ts` | CLI entrypoint, orchestrates parse → evaluate → build → emit |
 | `src/engine/OpaCliEngine.ts` | OPA subprocess wrapper, fail-mode handling |
 | `src/parser/CommandParser.ts` | Hybrid parser (ShellQuote AST + regex fallback) |
-| `src/rules/catalog.ts` | 42-rule catalog (cc-safety-net parity) |
+| `src/rules/catalog.ts` | 75-rule catalog (cc-safety-net parity + pulumi GROUP I + DevOps GROUP J) |
 | `src/unlock/` | Unlock-key capability system (KeyDerivation, KeyParser, KeyVerifier, UnlockFilter, SaltResolver) |
 | `src/audit/AuditSink.ts` | Audit sink interface (NoOpSink default) |
 | `policy/safety.rego` | OPA/Rego policy (42 rules) |
@@ -173,6 +173,15 @@ npm install -g pi-opa-net
 # Install in pi
 pi install pi-opa-net
 ```
+
+## Lesson Learned
+
+<lesson_learn>
+1: worktree path signal took LAST positional; git grammar is path-first — `git worktree add .worktrees/foo HEAD` wrongly denied
+Context: GROUP J work; guard also misparses compound bash lines (`| tail`, `&&`, `2>&1` pollute args)
+Solutions: path-likeness heuristic (`/` or leading `.` `~`) picks path positional; regression tests in tests/unit/signals/signals.test.ts
+Ref: 2026-08-16_worktree-path-last-positional-bug.md
+</lesson_learn>
 
 ## References
 

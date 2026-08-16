@@ -1,6 +1,6 @@
 import { parse as shellQuoteParse } from 'shell-quote';
-import type { CommandParser, ParsedCommand } from './types.ts';
 import { stripWithMeta } from './stripGitGlobalOptions.ts';
+import type { CommandParser, ParsedCommand } from './types.ts';
 
 /**
  * Programs that use a `[program, subcommand, args...]` shape.
@@ -9,7 +9,19 @@ import { stripWithMeta } from './stripGitGlobalOptions.ts';
  * rego policy queries each family (git/docker/gh/glab check subcommand;
  * rm/bd/gcloud/bq check args).
  */
-const SUBCOMMAND_PROGRAMS = new Set(['git', 'docker', 'gh', 'glab']);
+const SUBCOMMAND_PROGRAMS = new Set([
+  'git',
+  'docker',
+  'gh',
+  'glab',
+  'pulumi',
+  'terraform',
+  'tofu',
+  'terragrunt',
+  'nomad',
+  'consul',
+  'vault',
+]);
 
 /**
  * AST-based parser using shell-quote [OT1 resolution: primary path].
@@ -65,9 +77,20 @@ function classify(strings: string[], raw: string, hasMeta: boolean): ParsedComma
   }
 
   // Subcommand-style programs: tokens[1] is the subcommand (unless it's a flag).
-  if (SUBCOMMAND_PROGRAMS.has(program) && effectiveRest.length > 0 && !effectiveRest[0].startsWith('-')) {
+  if (
+    SUBCOMMAND_PROGRAMS.has(program) &&
+    effectiveRest.length > 0 &&
+    !effectiveRest[0].startsWith('-')
+  ) {
     const [sub, ...args] = effectiveRest;
-    return { raw, program, subcommand: sub.toLowerCase(), args, parseConfidence: confidence, gitCwd };
+    return {
+      raw,
+      program,
+      subcommand: sub.toLowerCase(),
+      args,
+      parseConfidence: confidence,
+      gitCwd,
+    };
   }
 
   // Non-subcommand programs: everything after program is an arg.

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { canonicalizePath } from '../../../src/util/canonicalizePath.ts';
@@ -42,9 +42,7 @@ describe('canonicalizePath', () => {
 
   describe('denied paths', () => {
     it('denies path outside allowed prefix', () => {
-      const result = canonicalizePath(join(tmpDir, 'evil', 'file.txt'), [
-        join(tmpDir, 'allowed'),
-      ]);
+      const result = canonicalizePath(join(tmpDir, 'evil', 'file.txt'), [join(tmpDir, 'allowed')]);
       expect(result.allowed).toBe(false);
       expect(result.reason).toBe('path-outside-allowed');
     });

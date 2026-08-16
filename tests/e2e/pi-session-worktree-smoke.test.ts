@@ -17,8 +17,8 @@
  * pattern of pi-session-smoke.test.ts.
  */
 import { describe, expect, it } from 'bun:test';
-import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -80,7 +80,7 @@ function runPiSession(
 /** Write smoke proof to disk. */
 function writeSmokeProof(name: string, data: Record<string, unknown>): void {
   mkdirSync(smokeDir, { recursive: true });
-  writeFileSync(join(smokeDir, `${name}.jsonl`), JSON.stringify(data) + '\n');
+  writeFileSync(join(smokeDir, `${name}.jsonl`), `${JSON.stringify(data)}\n`);
 }
 
 describe.skipIf(shouldSkip)('pi session smoke: worktree/branch gating (t9)', () => {
@@ -108,7 +108,8 @@ describe.skipIf(shouldSkip)('pi session smoke: worktree/branch gating (t9)', () 
         cwd,
         exitCode: result.exitCode,
         stdout_tail: result.stdout.slice(-2000),
-        blocked: result.stdout.includes('BLOCKED') || result.stdout.includes('branch-target-allowlist'),
+        blocked:
+          result.stdout.includes('BLOCKED') || result.stdout.includes('branch-target-allowlist'),
         full_stdout: result.stdout,
       });
 
@@ -144,7 +145,8 @@ describe.skipIf(shouldSkip)('pi session smoke: worktree/branch gating (t9)', () 
         cwd,
         exitCode: result.exitCode,
         stdout_tail: result.stdout.slice(-2000),
-        blocked: result.stdout.includes('BLOCKED') || result.stdout.includes('worktree-path-allowlist'),
+        blocked:
+          result.stdout.includes('BLOCKED') || result.stdout.includes('worktree-path-allowlist'),
         full_stdout: result.stdout,
       });
 

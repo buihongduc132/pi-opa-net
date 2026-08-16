@@ -30,7 +30,32 @@ export type CheckoutClassification =
 const FLAGS_WITH_VALUE = new Set(['--track', '--recurse-submodules', '-l', '--lock', '--source']);
 
 /** Flags that take no value. */
-const FLAGS_NO_VALUE = new Set(['-f', '--force', '-m', '--merge', '-p', '--patch', '-q', '--quiet', '--progress', '--no-progress', '-t', '--track', '--no-track', '-2', '--ours', '-3', '--theirs', '--ignore-skip-checks', '--no-guess', '--no-overlay', '--overlay', '--pathspec-file-nul', '--no-write-out-tree', '--write-out-tree']);
+const FLAGS_NO_VALUE = new Set([
+  '-f',
+  '--force',
+  '-m',
+  '--merge',
+  '-p',
+  '--patch',
+  '-q',
+  '--quiet',
+  '--progress',
+  '--no-progress',
+  '-t',
+  '--track',
+  '--no-track',
+  '-2',
+  '--ours',
+  '-3',
+  '--theirs',
+  '--ignore-skip-checks',
+  '--no-guess',
+  '--no-overlay',
+  '--overlay',
+  '--pathspec-file-nul',
+  '--no-write-out-tree',
+  '--write-out-tree',
+]);
 
 /**
  * Classify the target of a `git checkout` / `git switch` command.

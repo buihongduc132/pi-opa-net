@@ -49,16 +49,30 @@ export class WorktreeSignals implements SignalCollector {
     // Parse remaining args to find positionals.
     const positionals = parsePositionals(args.slice(1));
 
+    if (positionals.length === 0) {
+      return { available: false, target_path: null, worktree_subcommand: wtSubcommand };
+    }
+
     // Path extraction depends on subcommand:
-    //   - add:   [<commit-ish>] <path> → path is LAST positional
-    //   - move:  <wt> <new-path>       → path is LAST positional (new-path)
-    //   - repair: <path>               → path is LAST positional (first/only)
-    // For all three, the path is the LAST positional (semantically consistent).
-    // For add: if commit-ish given, it's the first positional; path is second.
-    //         If only path given, it's the only positional.
-    // For move: first positional is the worktree name, second is new-path.
-    // For repair: only positional(s) are paths.
-    const targetPath = positionals.length > 0 ? positionals[positionals.length - 1] : null;
+    //   - add:   modern git synopsis is `<path> [<commit-ish>]` (path FIRST),
+    //            but old-style `git worktree add <commit-ish> <path>` also
+    //            works — when 2 positionals exist, pick the path-LIKE one;
+    //            falls back to first positional (modern form).
+    //   - move:  <wt> <new-path> → path is LAST positional (new-path).
+    //   - repair: <path> [<backup>] → path is FIRST positional.
+    // FIX: previous implementation always took the LAST positional, which
+    // misread `git worktree add .worktrees/foo HEAD` as targeting path "HEAD"
+    // and wrongly denied a legitimate allowlisted worktree add.
+    let targetPath: string;
+    if (wtSubcommand === 'add' && positionals.length >= 2) {
+      const first = positionals[0];
+      const last = positionals[positionals.length - 1];
+      targetPath = isPathLike(last) && !isPathLike(first) ? last : first;
+    } else if (wtSubcommand === 'move') {
+      targetPath = positionals[positionals.length - 1];
+    } else {
+      targetPath = positionals[0];
+    }
 
     return {
       available: targetPath !== null,
@@ -66,6 +80,13 @@ export class WorktreeSignals implements SignalCollector {
       worktree_subcommand: wtSubcommand,
     };
   }
+}
+
+/** Heuristic: does a token look like a filesystem path rather than a ref?
+ *  Path-like: starts with ./ ../ / ~ . or contains a '/'. Refs like HEAD,
+ *  main, v1.2.3 are not path-like. */
+function isPathLike(token: string): boolean {
+  return token.includes('/') || /^[.~]/.test(token);
 }
 
 /**

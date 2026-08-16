@@ -11,10 +11,7 @@ import type { SignalCollector, SignalContext, Signals } from './types.ts';
  * Run all collectors and merge their outputs into a Signals object.
  * Each collector's result is keyed by its `name` (e.g. 'git', 'repo', 'worktree', 'env').
  */
-export function collectAll(
-  collectors: readonly SignalCollector[],
-  ctx: SignalContext,
-): Signals {
+export function collectAll(collectors: readonly SignalCollector[], ctx: SignalContext): Signals {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const collector of collectors) {
@@ -22,7 +19,7 @@ export function collectAll(
       const signals = collector.collect(ctx);
       // Only include if at least partially available.
       if (signals && typeof signals === 'object') {
-        result[collector.name] = signals;
+        result[collector.name] = signals as Record<string, unknown>;
       }
     } catch {
       // Fail-open: record as unavailable.

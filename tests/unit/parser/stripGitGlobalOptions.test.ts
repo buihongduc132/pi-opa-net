@@ -100,11 +100,7 @@ describe('stripGitGlobalOptions', () => {
     });
 
     it('passes through when no globals present', () => {
-      expect(stripGitGlobalOptions(['worktree', 'add', 'foo'])).toEqual([
-        'worktree',
-        'add',
-        'foo',
-      ]);
+      expect(stripGitGlobalOptions(['worktree', 'add', 'foo'])).toEqual(['worktree', 'add', 'foo']);
     });
 
     it('passes through empty array', () => {

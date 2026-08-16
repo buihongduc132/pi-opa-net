@@ -115,4 +115,27 @@ describe('rule catalog ↔ rego parity', () => {
       }
     });
   });
+
+  // ── pulumi IaC safety rule parity ──
+  describe('pulumi IaC safety rule parity', () => {
+    const REQUIRED_RULE_IDS = [
+      'block-pulumi-up-force',
+      'block-pulumi-destroy',
+      'block-pulumi-stack-rm',
+      'block-pulumi-state-delete',
+    ];
+
+    it('catalog contains all pulumi rule IDs', () => {
+      const catalogIds = new Set(RULES.map((r) => r.ruleId));
+      const missing = REQUIRED_RULE_IDS.filter((id) => !catalogIds.has(id));
+      expect(missing, `catalog is missing rule IDs: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('each pulumi rule maps to family pulumi', () => {
+      const byId = new Map(RULES.map((r) => [r.ruleId, r]));
+      for (const id of REQUIRED_RULE_IDS) {
+        expect(byId.get(id)?.family).toBe('pulumi');
+      }
+    });
+  });
 });
