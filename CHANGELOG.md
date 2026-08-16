@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-16
+
+### Added
+
+- **GROUP I — pulumi IaC safety** (4 rules): `block-pulumi-up-force` (`up --force`/`-y`/`--yes`/`--skip-preview`), `block-pulumi-destroy`, `block-pulumi-stack-rm`, `block-pulumi-state-delete` (delete/unprotect). `pulumi` added to SUBCOMMAND_PROGRAMS in both parsers. Read-only ops (`preview`, `stack ls`) stay allowed.
+- **GROUP J — DevOps destructive-CLI coverage** (27 rules): terraform/tofu/terragrunt (destroy, `apply -auto-approve`, `state rm/delete`, `terragrunt run destroy/apply --auto-approve`), nomad (job stop/deregister, alloc stop/signal/restart, system gc, node drain, deployment fail/pause, volume detach), consul (kv delete, services deregister, leave/force-leave, operator raft remove-peer), vault (kv delete/destroy, secrets/auth disable, token/lease revoke, seal, operator raft remove-peer), aws (multiword destructive verbs + `s3 rm`/`rb` two-token guard), pm2 (kill/delete/stop/restart), systemctl (stop/kill/mask/disable/isolate), dd (`of=/dev/*` block-device writes), and **docker-compose v1 standalone binary GROUP C parity** (litellm carve-out bypass closed).
+- **8 new rule families**: `pulumi`, `iac`, `nomad`, `consul`, `vault`, `aws`, `svcman`, `dd` — RuleFamily union + decision-output.v1.json enum kept in sync.
+- **Parser canary tests**: `pulumiParsing.test.ts`, `groupJParsing.test.ts` — pin subcommand-shape classification so GROUP I/J rules cannot silently stop firing on parser drift.
+
+### Fixed
+
+- **Worktree path signal took LAST positional instead of git path-first grammar.** `git worktree add .worktrees/foo HEAD` was wrongly denied (ref `HEAD` extracted as target path). Now picks the path-LIKE positional (contains `/` or starts with `.`/`~`); `move` keeps last (new-path), `repair` takes first. Regression tests added.
+- **`SignalCollector.collect()` typed `any` → `object`** (root-cause lint fix, no behavior change).
+- Repo-wide biome format pass (lint:ci 17 → 0 errors).
+
 ## [0.5.0] - 2026-07-31
 
 ### Added
