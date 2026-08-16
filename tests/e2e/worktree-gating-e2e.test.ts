@@ -314,6 +314,55 @@ describe.skipIf(!opaAvailable)('E2E: worktree/branch gating (LD1-LD8)', () => {
       rmSync(otherRepo, { recursive: true, force: true });
     }
   });
+  it('(k) checkout ALLOWED branch main from main worktree → ALLOW', () => {
+    // Put HEAD on a non-allowed branch first so the command is a real cross-branch
+    // checkout to an allowlisted target (same execSync precedent as test (e)).
+    execSync('git checkout feature-evil', { cwd: fixtureRepo, stdio: 'ignore', timeout: 5000 });
+
+    const result = runCli('git checkout main', fixtureRepo);
+    writeAudit('k-checkout-main-allow', result, 'git checkout main');
+
+    // 'main' is in the default allowlist (dev,staging,main,master) — must be ALLOWED.
+    expect(result.exitCode).toBe(0);
+    expect(result.record?.decision).toBe('allow');
+    const reasons = JSON.stringify(result.record?.reasons ?? '');
+    expect(reasons).not.toContain('branch-target-allowlist');
+
+    // Restore HEAD to main for subsequent tests.
+    execSync('git checkout main', { cwd: fixtureRepo, stdio: 'ignore', timeout: 5000 });
+  });
+
+  it('(l) checkout ALLOWED branches dev and staging from main worktree → ALLOW', () => {
+    for (const branch of ['dev', 'staging'] as const) {
+      // Ensure deterministic start: HEAD on main, then checkout an allowed branch.
+      execSync('git checkout main', { cwd: fixtureRepo, stdio: 'ignore', timeout: 5000 });
+
+      const result = runCli(`git checkout ${branch}`, fixtureRepo);
+      writeAudit(`l-checkout-${branch}-allow`, result, `git checkout ${branch} (from main)`);
+
+      // 'dev' and 'staging' are in the default allowlist — must be ALLOWED.
+      expect(result.exitCode).toBe(0);
+      expect(result.record?.decision).toBe('allow');
+      const reasons = JSON.stringify(result.record?.reasons ?? '');
+      expect(reasons).not.toContain('branch-target-allowlist');
+    }
+  });
+
+  it('(m) switch ALLOWED branch main from main worktree → ALLOW', () => {
+    execSync('git checkout feature-evil', { cwd: fixtureRepo, stdio: 'ignore', timeout: 5000 });
+
+    const result = runCli('git switch main', fixtureRepo);
+    writeAudit('m-switch-main-allow', result, 'git switch main');
+
+    // 'main' is in the default allowlist — switch must be ALLOWED.
+    expect(result.exitCode).toBe(0);
+    expect(result.record?.decision).toBe('allow');
+    const reasons = JSON.stringify(result.record?.reasons ?? '');
+    expect(reasons).not.toContain('branch-target-allowlist');
+
+    execSync('git checkout main', { cwd: fixtureRepo, stdio: 'ignore', timeout: 5000 });
+  });
+
   it('audit logs exist on disk for third-party verification', () => {
     // Verify proof files exist.
     expect(existsSync(join(auditDir, 'a-checkout-non-allowed-deny.jsonl'))).toBe(true);
