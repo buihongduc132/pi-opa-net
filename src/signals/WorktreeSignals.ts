@@ -67,7 +67,12 @@ export class WorktreeSignals implements SignalCollector {
     if (wtSubcommand === 'add' && positionals.length >= 2) {
       const first = positionals[0];
       const last = positionals[positionals.length - 1];
-      targetPath = isPathLike(last) && !isPathLike(first) ? last : first;
+      // Priority: explicit ref tokens (refs/, origin/, HEAD*, sha) → path is
+      // the other positional. Else path-LIKE disambiguation, else first
+      // (modern path-first synopsis).
+      if (isRefLike(first)) targetPath = last;
+      else if (isRefLike(last)) targetPath = first;
+      else targetPath = isPathLike(last) && !isPathLike(first) ? last : first;
     } else if (wtSubcommand === 'move') {
       targetPath = positionals[positionals.length - 1];
     } else {
@@ -87,6 +92,17 @@ export class WorktreeSignals implements SignalCollector {
  *  main, v1.2.3 are not path-like. */
 function isPathLike(token: string): boolean {
   return token.includes('/') || /^[.~]/.test(token);
+}
+
+/** Explicit ref detection (higher confidence than isPathLike inverse):
+ *  refs/…, origin/… (remote-tracking), HEAD / HEAD~n / HEAD^, bare git sha. */
+function isRefLike(token: string): boolean {
+  return (
+    token.startsWith('refs/') ||
+    token.startsWith('origin/') ||
+    /^HEAD([~^]\d*)*$/.test(token) ||
+    /^[0-9a-f]{7,40}$/.test(token)
+  );
 }
 
 /**

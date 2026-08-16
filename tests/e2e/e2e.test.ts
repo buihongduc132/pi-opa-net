@@ -306,6 +306,9 @@ const ALLOW_CASES: ExpectAllow[] = [
   { command: 'systemctl status nginx' }, // read-only systemd status
   { command: 'systemctl daemon-reload' }, // safe systemd op
   { command: 'dd if=/dev/zero of=/tmp/img' }, // dd to regular file stays allowed
+  { command: 'dd if=/dev/zero of=/dev/null' }, // /dev/null is safe (not a block device)
+  { command: 'pm2 start app.js --name restart' }, // verb matched as flag value must NOT deny
+  { command: 'pm2 logs --nostream' }, // read-only pm2 logs
   { command: 'docker-compose --project-name=litellm ps' }, // read-only compose status
   // GROUP G carve-outs (cc-safety-net parity).
   // RED: the engine must NOT deny these read-only / unrelated targets once the

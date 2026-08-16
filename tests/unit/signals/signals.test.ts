@@ -89,6 +89,24 @@ describe('WorktreeSignals', () => {
     expect(result.target_path).toBe('../feat');
   });
 
+  it('add with refs/ ref first → path is last (`refs/heads/feat ../wt`)', () => {
+    const collector = new WorktreeSignals();
+    const result = collector.collect(
+      makeCtx('git', 'worktree', ['add', 'refs/heads/feat', '../wt']),
+    );
+    expect(result.available).toBe(true);
+    expect(result.target_path).toBe('../wt');
+  });
+
+  it('add with sha commit-ish first → path is last', () => {
+    const collector = new WorktreeSignals();
+    const result = collector.collect(
+      makeCtx('git', 'worktree', ['add', 'a1b2c3d', '.worktrees/wt']),
+    );
+    expect(result.available).toBe(true);
+    expect(result.target_path).toBe('.worktrees/wt');
+  });
+
   it('extracts new-path from git worktree move', () => {
     const collector = new WorktreeSignals();
     const result = collector.collect(

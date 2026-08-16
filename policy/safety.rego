@@ -54,6 +54,13 @@ has_arg_prefix(args, prefixes) if {
     startswith(a, p)
 }
 
+# True if the verb token sits in subcommand position (args[0]) — avoids
+# matching user-controlled values (e.g. `pm2 start app --name restart`).
+first_arg_in(args, tokens) if {
+    some t in tokens
+    args[0] == t
+}
+
 # ──────────────────────────────────────────────────────────────────
 # GROUP A — git subcommand + blocked arg tokens
 # (rule family: command + subcommand + block_args[])
@@ -714,19 +721,22 @@ deny[msg] if {
 
 deny[msg] if {
     input.program == "pm2"
-    has_any_arg(input.args, ["kill", "delete", "stop", "restart"])
+    first_arg_in(input.args, ["kill", "delete", "stop", "restart"])
     msg := "pm2 kill/delete/stop/restart affects every managed node service. Do NOT run this automatically — hand the exact command back to the user."
 }
 
 deny[msg] if {
     input.program == "systemctl"
-    has_any_arg(input.args, ["stop", "kill", "mask", "disable", "isolate"])
+    first_arg_in(input.args, ["stop", "kill", "mask", "disable", "isolate"])
     msg := "systemctl stop/kill/mask/disable/isolate affects host services. Do NOT run this automatically — hand the exact command back to the user."
 }
 
 deny[msg] if {
     input.program == "dd"
-    has_arg_prefix(input.args, ["of=/dev/"])
+    has_arg_prefix(input.args, [
+        "of=/dev/sd", "of=/dev/nvme", "of=/dev/vd", "of=/dev/hd",
+        "of=/dev/mmcblk", "of=/dev/loop", "of=/dev/md", "of=/dev/mapper",
+    ])
     msg := "dd writing to a raw block device (of=/dev/*) can destroy disks beyond recovery. Do NOT run this automatically."
 }
 
