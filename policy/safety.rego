@@ -789,6 +789,13 @@ target_is_local_branch if {
     input.signals.git.target_branch != null
 }
 
+# Helper: array/set-agnostic membership test for allowed branches.
+# data.config.allowed_branches may arrive as a JSON array; string-indexing
+# an array is undefined, so use iteration-based membership instead.
+branch_allowed(t) if {
+    allowed_branches[_] == t
+}
+
 # Deny checkout to non-allowed branch from main worktree.
 # Empty allowed_branches → rule inert (LD3).
 deny[msg] if {
@@ -798,7 +805,7 @@ deny[msg] if {
     target_is_local_branch
     count(allowed_branches) > 0
     target := input.signals.git.target_branch
-    not allowed_branches[target]
+    not branch_allowed(target)
     msg := sprintf("branch-target-allowlist: checkout to non-allowed branch '%s'. Allowed: %v", [target, allowed_branches])
 }
 
@@ -811,7 +818,7 @@ deny[msg] if {
     target_is_local_branch
     count(allowed_branches) > 0
     target := input.signals.git.target_branch
-    not allowed_branches[target]
+    not branch_allowed(target)
     msg := sprintf("branch-target-allowlist: switch to non-allowed branch '%s'. Allowed: %v", [target, allowed_branches])
 }
 
