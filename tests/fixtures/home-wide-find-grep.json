@@ -1,0 +1,137 @@
+{
+  "source": "BHD-165 / BHD-169 live agent walks, host bhd-main2 2026-08-23. Parent bash from pi 352147; finds entered D-state wait_on_buffer.",
+  "rule_ids": {
+    "find": "block-home-wide-find",
+    "grep": "block-home-wide-grep"
+  },
+  "notes": [
+    "Deny class is home-rooted find ($HOME, /home/<user>, ~) and recursive grep on ~/.hermes *.db.",
+    "maxdepth / -name / -mmin / -newermt do NOT exempt a home root.",
+    "Allow class is cwd/repo scoped walks, known goal dirs, and maxdepth<=2 under <repo>/.worktrees.",
+    "Compound bash -c must classify the INNER find/grep, not only program=bash.",
+    "systemd wt-reap-idle does not pass the pi bash hook — opa-net alone will not stop it (OT-systemd).",
+    "Unlock is per-rule (LD-L1). No god-key (LD-L2). source must be opa-unlocked (LD-L6). Fail-open stays."
+  ],
+  "cases": [
+    {
+      "id": "pid-goal-json-home",
+      "pid": null,
+      "command": "find /home/bhd -name goal.json -mmin -15",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Live D-find 21:35. Home-rooted even with -name/-mmin."
+    },
+    {
+      "id": "pid-3224795-completion-json",
+      "pid": 3224795,
+      "command": "find /tmp /home/bhd -maxdepth 4 -name completion.json -newermt 2026-08-23",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Live D-state wait_on_buffer. Mixed roots: /tmp is fine, /home/bhd is not. maxdepth does not exempt."
+    },
+    {
+      "id": "pid-grep-hermes-db",
+      "pid": null,
+      "command": "grep -rl BHD-156 ~/.hermes --include=*.db",
+      "expect": "deny",
+      "rule_id": "block-home-wide-grep",
+      "notes": "Live recursive grep of ~/.hermes sqlite. Parser drops --include=*.db (glob meta); raw must still deny."
+    },
+    {
+      "id": "find-home-unbounded",
+      "pid": null,
+      "command": "find /home/bhd",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Unbounded home walk."
+    },
+    {
+      "id": "find-dollar-home",
+      "pid": null,
+      "command": "find $HOME",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "shell-quote expands $HOME to empty arg; GREEN must match raw like rm-rf $HOME."
+    },
+    {
+      "id": "find-quoted-dollar-home",
+      "pid": null,
+      "command": "find \"$HOME\"",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Quoted $HOME. Same raw-token requirement."
+    },
+    {
+      "id": "find-tilde",
+      "pid": null,
+      "command": "find ~",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Tilde home root."
+    },
+    {
+      "id": "bash-c-inner-find",
+      "pid": 352147,
+      "command": "bash -c 'echo hi; find /home/bhd -name goal.json -mmin -15'",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Parent is bash -c (pi). Inner find must fire, not only program=bash."
+    },
+    {
+      "id": "projects-unbounded-wt-context",
+      "pid": null,
+      "command": "find /home/bhd/Documents/Projects -name .wt-context.json",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "Live D-find class: unbounded Projects walk. Contrast the allowlisted .worktrees maxdepth<=2 form."
+    },
+    {
+      "id": "find-dot",
+      "pid": null,
+      "command": "find .",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "Cwd-scoped walk stays allowed."
+    },
+    {
+      "id": "find-pi-goals",
+      "pid": null,
+      "command": "find ~/.pi/goals",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "Known goal dir."
+    },
+    {
+      "id": "find-verifier-loop-goals",
+      "pid": null,
+      "command": "find ~/.verifier-loop/goals",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "Known goal dir."
+    },
+    {
+      "id": "find-worktrees-maxdepth2",
+      "pid": null,
+      "command": "find ./.worktrees -maxdepth 2 -name .wt-context.json",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "Scoped worktree context walk. systemd wt-reap-idle may not hit this hook."
+    },
+    {
+      "id": "find-beet-orches-file",
+      "pid": null,
+      "command": "find beet-orches -name process-incoming-object.js",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "Live earlier D-find sibling that is actually repo-relative; must stay ALLOW from agent cwd/repo."
+    },
+    {
+      "id": "rg-in-worktree",
+      "pid": null,
+      "command": "rg -l BHD-156 .",
+      "expect": "allow",
+      "rule_id": null,
+      "notes": "rg inside a worktree is not this gate."
+    }
+  ]
+}
