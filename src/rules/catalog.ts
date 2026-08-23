@@ -186,6 +186,21 @@ export const RULES: readonly RuleMeta[] = [
     message:
       'rm -rf on dangerous targets (/, ~, ., .., *, /*, $HOME, /home) is blocked. Use specific paths like /tmp/dir or ./subdir.',
   },
+  // ── GROUP K: home-wide find/grep (BHD-165) ──
+  {
+    ruleId: 'block-home-wide-find',
+    family: 'find',
+    message:
+      'Home-rooted find ($HOME, /home/<user>, ~, unbounded Projects) is blocked. Scope to cwd, a repo, or a known goal dir. Unlock with block-home-wide-find.',
+    suggestions: ['find .', 'find <repo>', 'find ~/.pi/goals', 'find ~/.verifier-loop/goals'],
+  },
+  {
+    ruleId: 'block-home-wide-grep',
+    family: 'grep',
+    message:
+      'Recursive grep of ~/.hermes (including *.db) is blocked. Scope to cwd or a file. Unlock with block-home-wide-grep.',
+    suggestions: ['grep -r foo .', 'rg -l <pattern> .'],
+  },
   // ── GROUP F: gh / glab ──
   {
     ruleId: 'block-gh-repo-delete-archive',
@@ -465,6 +480,10 @@ export function inferFamilyFromProgram(program: string): RuleFamily {
       return 'pulumi';
     case 'docker-compose':
       return 'docker';
+    case 'find':
+      return 'find';
+    case 'grep':
+      return 'grep';
     default:
       return 'custom';
   }

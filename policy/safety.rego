@@ -867,6 +867,166 @@ deny[msg] if {
 }
 
 # ──────────────────────────────────────────────────────────────────
+# GROUP K — home-wide find / recursive hermes grep (BHD-165)
+# Deny class: home-rooted find ($HOME, /home/<user>, ~, unbounded Projects)
+#             and recursive grep of ~/.hermes (incl. *.db).
+# Allow class: cwd/repo scoped walks, known goal dirs, maxdepth<=2 under
+#              <repo>/.worktrees. Fail-open (default allow := true) stays.
+# Parser caveat: shell-quote expands `$HOME` to empty arg (same as rm -rf
+# $HOME) so we match BOTH args and input.raw. maxdepth/-name/-mmin/-newermt
+# do NOT exempt a home root.
+# ──────────────────────────────────────────────────────────────────
+
+# Basename of input.program so /usr/bin/find matches "find".
+program_base := parts[count(parts) - 1] if {
+    parts := split(input.program, "/")
+    count(parts) > 0
+}
+
+# Home directory from TS-side env signal (os.homedir). Undefined if unavailable.
+home_dir := h if {
+    h := object.get(object.get(object.get(input, "signals", {}), "env", {}), "home", "")
+    is_string(h)
+    h != ""
+}
+
+# Non-flag find path arguments (find roots).
+find_path_args(args) := [t | some t in args; not startswith(t, "-")]
+
+# Path is a home root: $HOME, ~, /home/<user>, trailing-slash variants.
+# maxdepth does NOT exempt — any home-rooted walk is the deny class.
+is_home_root(p) if { p == "~" }
+is_home_root(p) if { p == "~/" }
+is_home_root(p) if { p == "$HOME" }
+is_home_root(p) if { p == "${HOME}" }
+is_home_root(p) if { p == "/home" }
+is_home_root(p) if { regex.match("^/home/[^/]+/?$", p) }
+is_home_root(p) if {
+    home_dir != ""
+    p == home_dir
+}
+is_home_root(p) if {
+    home_dir != ""
+    p == sprintf("%s/", [home_dir])
+}
+
+# Unbounded Documents/Projects walk (live D-find class). A maxdepth<=2
+# walk under <repo>/.worktrees is a different prefix and is allowed.
+is_unbounded_projects(p) if {
+    regex.match("^(/home/[^/]+|~|\\$HOME)/Documents/Projects/?$", p)
+}
+is_unbounded_projects(p) if {
+    home_dir != ""
+    p == sprintf("%s/Documents/Projects", [home_dir])
+}
+is_unbounded_projects(p) if {
+    home_dir != ""
+    p == sprintf("%s/Documents/Projects/", [home_dir])
+}
+
+# Known goal-dir prefixes that MUST stay allowed without a key.
+is_known_goal_dir(p) if { startswith(p, "~/.pi/goals") }
+is_known_goal_dir(p) if { startswith(p, "~/.verifier-loop/goals") }
+is_known_goal_dir(p) if { regex.match("^/home/[^/]+/\\.pi/goals", p) }
+is_known_goal_dir(p) if { regex.match("^/home/[^/]+/\\.verifier-loop/goals", p) }
+is_known_goal_dir(p) if {
+    home_dir != ""
+    startswith(p, sprintf("%s/.pi/goals", [home_dir]))
+}
+is_known_goal_dir(p) if {
+    home_dir != ""
+    startswith(p, sprintf("%s/.verifier-loop/goals", [home_dir]))
+}
+
+find_path_is_denied(p) if {
+    is_home_root(p)
+    not is_known_goal_dir(p)
+}
+find_path_is_denied(p) if {
+    is_unbounded_projects(p)
+    not is_known_goal_dir(p)
+}
+
+# Raw-token fallback: `$HOME` / `"$HOME"` vanish from args (shell-quote
+# expands them to empty). Same pattern as rm_raw_dangerous_token.
+find_raw_home_token(raw) if { regex.match("(^|\\s)\\$HOME(/|\\s|$)", raw) }
+find_raw_home_token(raw) if { regex.match("(^|\\s)\"\\$HOME\"(\\s|$)", raw) }
+find_raw_home_token(raw) if { regex.match("(^|\\s)'\\$HOME'(\\s|$)", raw) }
+find_raw_home_token(raw) if { regex.match("(^|\\s)~(\\s|$)", raw) }
+
+# Args-based deny: any find path is a home root or unbounded Projects.
+deny[msg] if {
+    program_base == "find"
+    some p in find_path_args(input.args)
+    find_path_is_denied(p)
+    msg := "Home-rooted find ($HOME, /home/<user>, ~, unbounded Projects) is blocked. Scope to cwd, a repo, or a known goal dir. Unlock with block-home-wide-find."
+}
+
+# Raw-based deny: $HOME / ~ token present; args lost the expansion.
+# Exempt `$HOME/.pi/goals` / `$HOME/.verifier-loop/goals` (allow class).
+find_raw_known_goal(raw) if { regex.match("\\$HOME/\\.pi/goals", raw) }
+find_raw_known_goal(raw) if { regex.match("\\$HOME/\\.verifier-loop/goals", raw) }
+find_raw_known_goal(raw) if { regex.match("~/.pi/goals", raw) }
+find_raw_known_goal(raw) if { regex.match("~/.verifier-loop/goals", raw) }
+
+deny[msg] if {
+    program_base == "find"
+    find_raw_home_token(input.raw)
+    not find_raw_known_goal(input.raw)
+    msg := "Home-rooted find ($HOME, /home/<user>, ~, unbounded Projects) is blocked. Scope to cwd, a repo, or a known goal dir. Unlock with block-home-wide-find."
+}
+
+# Recursive grep flag: -r / -R / --recursive / combined short cluster
+# containing r/R (e.g. -rl, -ri). Same cluster pattern as rm_has_recursive.
+grep_is_recursive(args) if { has_any_arg(args, ["-r", "-R", "--recursive"]) }
+grep_is_recursive(args) if {
+    some a in args
+    startswith(a, "-")
+    not startswith(a, "--")
+    count(a) > 2
+    contains(a, "r")
+}
+grep_is_recursive(args) if {
+    some a in args
+    startswith(a, "-")
+    not startswith(a, "--")
+    count(a) > 2
+    contains(a, "R")
+}
+
+# Path looks like ~/.hermes (tilde, expanded, or /home/<user>/.hermes).
+is_hermes_path(p) if { startswith(p, "~/.hermes") }
+is_hermes_path(p) if { regex.match("^/home/[^/]+/\\.hermes", p) }
+is_hermes_path(p) if {
+    home_dir != ""
+    startswith(p, sprintf("%s/.hermes", [home_dir]))
+}
+
+# Raw fallback for hermes path (when glob meta drops --include=*.db but
+# the ~/.hermes token still sits in raw).
+grep_raw_hermes(raw) if { regex.match("~/?\\.hermes", raw) }
+grep_raw_hermes(raw) if { regex.match("/home/[^/ ]+/\\.hermes", raw) }
+grep_raw_hermes(raw) if {
+    home_dir != ""
+    contains(raw, sprintf("%s/.hermes", [home_dir]))
+}
+
+deny[msg] if {
+    program_base == "grep"
+    grep_is_recursive(input.args)
+    some p in input.args
+    is_hermes_path(p)
+    msg := "Recursive grep of ~/.hermes (including *.db) is blocked. Scope to cwd or a file. Unlock with block-home-wide-grep."
+}
+
+deny[msg] if {
+    program_base == "grep"
+    grep_is_recursive(input.args)
+    grep_raw_hermes(input.raw)
+    msg := "Recursive grep of ~/.hermes (including *.db) is blocked. Scope to cwd or a file. Unlock with block-home-wide-grep."
+}
+
+# ──────────────────────────────────────────────────────────────────
 # USAGE
 # ──────────────────────────────────────────────────────────────────
 # After your parser normalizes a raw command into the input struct:

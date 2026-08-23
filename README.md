@@ -221,6 +221,8 @@ When enabled + endpoint set: `MultiSink([filesystem, otlp])`. When enabled but n
 ### Rules
 
 - `block-rm-rf-dangerous-target` — blocks `rm -rf` on `/`, `~`, `.`, `..`, `*`, `/*`, `$HOME`, `/home`. Safe carve-outs: `/tmp/<specific>`, `./<specific>`, named dirs.
+- `block-home-wide-find` — blocks home-rooted `find` (`$HOME`, `/home/<user>`, `~`, unbounded `Documents/Projects`). Scoped walks (`find .`, repo path, `~/.pi/goals`, `~/.verifier-loop/goals`, `<repo>/.worktrees -maxdepth 2`) stay allowed. Unlock key: `block-home-wide-find`.
+- `block-home-wide-grep` — blocks recursive `grep` of `~/.hermes` (including `*.db`). Cwd-scoped `grep -r` / `rg` stay allowed. Unlock key: `block-home-wide-grep`.
 
 ## Develop
 

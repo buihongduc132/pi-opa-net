@@ -139,7 +139,7 @@ describe('rule catalog ↔ rego parity', () => {
     });
   });
 
-  // ── home-wide find/grep gate (BHD-195 RED until Stage 2) ──
+  // ── home-wide find/grep gate (BHD-196 GREEN) ──
   describe('home-wide find/grep rule parity', () => {
     const REQUIRED_RULE_IDS = ['block-home-wide-find', 'block-home-wide-grep'];
 
@@ -147,6 +147,12 @@ describe('rule catalog ↔ rego parity', () => {
       const catalogIds = new Set(RULES.map((r) => r.ruleId));
       const missing = REQUIRED_RULE_IDS.filter((id) => !catalogIds.has(id));
       expect(missing, `catalog is missing rule IDs: ${missing.join(', ')}`).toEqual([]);
+    });
+
+    it('each home-wide rule maps to family find/grep', () => {
+      const byId = new Map(RULES.map((r) => [r.ruleId, r]));
+      expect(byId.get('block-home-wide-find')?.family).toBe('find');
+      expect(byId.get('block-home-wide-grep')?.family).toBe('grep');
     });
   });
 });

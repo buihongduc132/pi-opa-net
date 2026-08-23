@@ -21,7 +21,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  opa-net (framework)                                        │
 │  - OPA/Rego engine                                          │
-│  - 75-rule catalog (cc-safety-net parity + GROUP I/J)       │
+│  - 77-rule catalog (cc-safety-net parity + GROUP I/J + GROUP K)       │
 │  - Unlock-key capability system                             │
 │  - Output: decision-output.v1 schema                        │
 │  - Fail-mode: open/closed                                   │
@@ -102,7 +102,7 @@ pi-opa-net unlock-key --list
 | `src/cli/run.ts` | CLI entrypoint, orchestrates parse → evaluate → build → emit |
 | `src/engine/OpaCliEngine.ts` | OPA subprocess wrapper, fail-mode handling |
 | `src/parser/CommandParser.ts` | Hybrid parser (ShellQuote AST + regex fallback) |
-| `src/rules/catalog.ts` | 75-rule catalog (cc-safety-net parity + pulumi GROUP I + DevOps GROUP J) |
+| `src/rules/catalog.ts` | 77-rule catalog (cc-safety-net parity + pulumi GROUP I + DevOps GROUP J + home-wide find/grep GROUP K) |
 | `src/unlock/` | Unlock-key capability system (KeyDerivation, KeyParser, KeyVerifier, UnlockFilter, SaltResolver) |
 | `src/audit/AuditSink.ts` | Audit sink interface (NoOpSink default) |
 | `policy/safety.rego` | OPA/Rego policy (42 rules) |

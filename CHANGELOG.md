@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **GROUP K — home-wide find/grep gate** (BHD-165 / BHD-196): `block-home-wide-find` denies home-rooted `find` (`$HOME`, `/home/<user>`, `~`, unbounded `Documents/Projects`). `block-home-wide-grep` denies recursive `grep` of `~/.hermes` (incl. `*.db`). Scoped walks (`find .`, repo path, known goal dirs, `<repo>/.worktrees -maxdepth 2`) stay allowed without a key. Per-rule unlock keys (LD-L1); no god-key (LD-L2). Fail-open (`default allow := true`) unchanged.
+- **Parser: unwrap `bash -c` / `sh -c`** (OT-bash-c) so the inner program is classified. Quoted `-c` payload is one arg; the outer `;` splitter no longer cuts through it.
+
 ## [0.6.0] - 2026-08-16
 
 ### Added

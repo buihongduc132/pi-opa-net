@@ -4,4 +4,5 @@ export { ShellQuoteParser } from './ShellQuoteParser.ts';
 export { stripGitGlobalOptions } from './stripGitGlobalOptions.ts';
 export { classifyCheckoutTarget } from './checkoutTarget.ts';
 export type { CheckoutClassification } from './checkoutTarget.ts';
+export { programBasename, unwrapShellDashC } from './unwrapShellDashC.ts';
 export type { CommandParser, ParseConfidence, ParsedCommand } from './types.ts';

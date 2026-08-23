@@ -10,7 +10,7 @@ import { DecisionBuilder, type DecisionOutput } from '../output/DecisionBuilder.
 import { OutputFormatter, validateDecision } from '../output/OutputFormatter.ts';
 import { classifyCheckoutTarget } from '../parser/checkoutTarget.ts';
 import type { CommandParser, ParsedCommand } from '../parser/index.ts';
-import { CommandParserCoordinator } from '../parser/index.ts';
+import { CommandParserCoordinator, programBasename, unwrapShellDashC } from '../parser/index.ts';
 import { RULES, RuleRegistry } from '../rules/index.ts';
 import {
   EnvSignals,
@@ -136,6 +136,15 @@ async function evaluatePossiblyCompound(
 ): Promise<DecisionOutput> {
   const { parser, engine, config, builder, unlockKeys, hasKeys, baseCwd, collectors } = deps;
 
+  // OT-bash-c: unwrap BEFORE splitting on ';'. Quoted `-c` payload is one
+  // parser arg; a naive `;` split would cut through the inner program
+  // (`bash -c 'echo; find …'` → `bash -c 'echo` + `find …'`).
+  const outerParsed = parser.parse(raw);
+  const inner = unwrapShellDashC(outerParsed);
+  if (inner && inner.trim().length > 0 && inner !== raw) {
+    return evaluatePossiblyCompound(inner, deps);
+  }
+
   // Split on ';' but only treat as compound if more than one non-empty segment.
   const segments = raw
     .split(';')
@@ -143,8 +152,7 @@ async function evaluatePossiblyCompound(
     .filter((s) => s.length > 0);
 
   if (segments.length <= 1) {
-    // Single command path — unchanged behavior.
-    const parsed = parser.parse(raw);
+    const parsed = outerParsed;
     // LD8: Use parsed.gitCwd (from -C <path>) if present, otherwise baseCwd.
     const effectiveCwd = parsed.gitCwd ?? baseCwd;
     const signals = collectSignals(parsed, effectiveCwd, raw, config, collectors);
@@ -152,20 +160,10 @@ async function evaluatePossiblyCompound(
     return buildDecision(parsed, engineDecision, { config, builder, unlockKeys, hasKeys, signals });
   }
 
-  // Compound path: evaluate each segment, deny wins.
+  // Compound path: evaluate each segment (which may itself be bash -c), deny wins.
   let denyOutput: DecisionOutput | undefined;
   for (const segment of segments) {
-    const parsed = parser.parse(segment);
-    const effectiveCwd = parsed.gitCwd ?? baseCwd;
-    const signals = collectSignals(parsed, effectiveCwd, segment, config, collectors);
-    const engineDecision = await engine.evaluate(parsed, signals);
-    const output = buildDecision(parsed, engineDecision, {
-      config,
-      builder,
-      unlockKeys,
-      hasKeys,
-      signals,
-    });
+    const output = await evaluatePossiblyCompound(segment, deps);
     if (output.decision === 'deny' && output.action === 'block') {
       denyOutput = output;
       break; // first deny wins
@@ -306,7 +304,10 @@ function collectSignals(
   config: EngineConfig,
   collectors: readonly import('../signals/types.ts').SignalCollector[],
 ): Signals | undefined {
-  if (parsed.program !== 'git') {
+  // Collect env.home for find/grep so $HOME matching does not bake a username
+  // into policy. Git-only collectors fail-open (available:false) for non-git.
+  const base = programBasename(parsed.program);
+  if (base !== 'git' && base !== 'find' && base !== 'grep') {
     return undefined;
   }
 

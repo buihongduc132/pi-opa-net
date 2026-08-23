@@ -22,7 +22,9 @@ export type RuleFamily =
   | 'vault'
   | 'aws'
   | 'svcman'
-  | 'dd';
+  | 'dd'
+  | 'find'
+  | 'grep';
 
 export interface RuleMeta {
   readonly ruleId: string;
