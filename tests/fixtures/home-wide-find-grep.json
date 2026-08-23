@@ -1,16 +1,18 @@
 {
-  "source": "BHD-165 / BHD-169 live agent walks, host bhd-main2 2026-08-23. Parent bash from pi 352147; finds entered D-state wait_on_buffer.",
+  "source": "BHD-165 / BHD-169 live agent walks, host bhd-main2 2026-08-23. Parent bash from pi 352147; finds entered D-state wait_on_buffer. Stage 4 (BHD-202) adds BHD-197 gap 3 subtree holes + gap 4 maxdepth-99.",
   "rule_ids": {
     "find": "block-home-wide-find",
     "grep": "block-home-wide-grep"
   },
   "notes": [
-    "Deny class is home-rooted find ($HOME, /home/<user>, ~) and recursive grep on ~/.hermes *.db.",
-    "maxdepth / -name / -mmin / -newermt do NOT exempt a home root.",
+    "Deny class is home-WIDE find ($HOME/**, /home/<user>/**, ~/**) except the named allow class, plus recursive grep on ~/.hermes *.db.",
+    "Home-wide means prefix, not exact home root. Subtrees (.ssh, .config, .local, Documents, Documents/Projects/bhd) DENY without unlock.",
+    "maxdepth / -name / -mmin / -newermt do NOT exempt a home prefix.",
     "Allow class is cwd/repo scoped walks, known goal dirs, and maxdepth<=2 under <repo>/.worktrees.",
+    ".worktrees maxdepth is a real gate: maxdepth 99 DENY. Advertising maxdepth<=2 without a test is how Stage 2 shipped an unenforced exception.",
     "Compound bash -c must classify the INNER find/grep, not only program=bash.",
     "systemd wt-reap-idle does not pass the pi bash hook — opa-net alone will not stop it (OT-systemd).",
-    "Unlock is per-rule (LD-L1). No god-key (LD-L2). source must be opa-unlocked (LD-L6). Fail-open stays."
+    "Unlock is per-rule (LD-L1). No god-key (LD-L2). source must be opa-unlocked (LD-L6). Fail-open stays as policy default; deny-class must not take the timeout path (source !== fail-open)."
   ],
   "cases": [
     {
@@ -84,6 +86,62 @@
       "expect": "deny",
       "rule_id": "block-home-wide-find",
       "notes": "Live D-find class: unbounded Projects walk. Contrast the allowlisted .worktrees maxdepth<=2 form."
+    },
+    {
+      "id": "find-home-ssh-abs",
+      "pid": null,
+      "command": "find /home/bhd/.ssh",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: exact-root matcher ALLOWed this. Home-wide prefix must DENY."
+    },
+    {
+      "id": "find-home-ssh-tilde",
+      "pid": null,
+      "command": "find ~/.ssh",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: ~ spelling of .ssh subtree. Isolated CLI ALLOW."
+    },
+    {
+      "id": "find-home-config",
+      "pid": null,
+      "command": "find /home/bhd/.config",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: home subtree .config. Isolated CLI ALLOW."
+    },
+    {
+      "id": "find-home-local",
+      "pid": null,
+      "command": "find /home/bhd/.local",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: home subtree .local. Isolated CLI ALLOW."
+    },
+    {
+      "id": "find-home-documents",
+      "pid": null,
+      "command": "find /home/bhd/Documents",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: home subtree Documents. Isolated CLI ALLOW."
+    },
+    {
+      "id": "find-home-documents-projects-bhd",
+      "pid": null,
+      "command": "find /home/bhd/Documents/Projects/bhd",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 3: home subtree Documents/Projects/bhd. Isolated CLI ALLOW."
+    },
+    {
+      "id": "find-worktrees-maxdepth99",
+      "pid": null,
+      "command": "find ./.worktrees -maxdepth 99 -name .wt-context.json",
+      "expect": "deny",
+      "rule_id": "block-home-wide-find",
+      "notes": "BHD-197 gap 4: parent allow-class is maxdepth<=2. maxdepth 99 must DENY. Stage 2 shipped this as ALLOW because no maxdepth check exists."
     },
     {
       "id": "find-dot",

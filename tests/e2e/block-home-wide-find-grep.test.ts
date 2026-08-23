@@ -1,18 +1,20 @@
 /**
- * RED tests for the home-wide find/grep gate (BHD-195 / BHD-165 Stage 1).
+ * RED tests for the home-wide find/grep gate
+ * (BHD-195 Stage 1 + BHD-202 Stage 4).
  *
- * Do NOT implement the rule here. Catalog + policy/safety.rego have no
- * `program == "find"` deny today — every DENY case must fail until Stage 2.
+ * Stage 4 extends Stage 1 fixtures. Do NOT implement policy/catalog/timeout
+ * here. Today's GREEN on 640d971 must fail the new deny/fail-open/maxdepth
+ * cases until Stage 5.
  *
  * Rule IDs (unlock keys, LD-L1 per-rule, no god-key LD-L2):
  *   block-home-wide-find
  *   block-home-wide-grep
  *
  * Unlock GREEN contract: same deny cmds with the matching key → ALLOW +
- * source:'opa-unlocked'. RED asserts catalog registration + mintability; do
- * not implement the key material.
+ * source:'opa-unlocked'. Unlock must not accept source:'fail-open-keyless'.
  *
- * Fail-open (`default allow := true`) must not be weakened.
+ * Fail-open (`default allow := true`) must not be weakened. Deny-class
+ * assertions require source !== 'fail-open' (OPA, not the timeout path).
  *
  * Fixture table: tests/fixtures/home-wide-find-grep.json (live PIDs/cmds).
  */
@@ -116,6 +118,34 @@ function reasonIds(json: EvalResult['json']): string[] {
   return (json.reasons ?? []).map((r) => r.rule_id ?? '');
 }
 
+/**
+ * Deny-class contract (BHD-202 A): a timeout fail-open is not a deny.
+ * Expect the decision from OPA, never source:'fail-open' / 'fail-open-keyless'.
+ */
+function expectOpaDeny(result: EvalResult, ruleId: string): void {
+  const { json, exitCode } = result;
+  expect(json.source, 'deny must come from OPA, not the timeout fail-open path').not.toBe(
+    'fail-open',
+  );
+  expect(json.source, 'deny must not be fail-open-keyless').not.toBe('fail-open-keyless');
+  expect(json.decision).toBe('deny');
+  expect(json.action).toBe('block');
+  expect(exitCode).toBe(2);
+  expect(reasonIds(json)).toContain(ruleId);
+}
+
+/** Unlock contract (BHD-202 A): fail-open-keyless is not a pass. */
+function expectOpaUnlocked(result: EvalResult): void {
+  const { json, exitCode } = result;
+  expect(json.source, 'unlock must not accept fail-open-keyless as a pass').not.toBe(
+    'fail-open-keyless',
+  );
+  expect(json.source).not.toBe('fail-open');
+  expect(json.source).toBe('opa-unlocked');
+  expect(json.decision).toBe('allow');
+  expect(exitCode).toBe(0);
+}
+
 describe('home-wide find/grep gate — catalog (RED until Stage 2)', () => {
   it(`registers ${FIND_RULE}`, () => {
     expectRuleRegistered(FIND_RULE);
@@ -144,140 +174,149 @@ describe.if(!SKIP_REASON)('home-wide find/grep gate — DENY without unlock', ()
 
   it('find /home/bhd -name goal.json -mmin -15 → DENY (live D-find)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { exitCode, json } = await runEval('find /home/bhd -name goal.json -mmin -15');
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find /home/bhd -name goal.json -mmin -15'), FIND_RULE);
   });
 
   it('find $HOME → DENY (raw $HOME; shell-quote expands arg to empty)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json, exitCode } = await runEval('find $HOME');
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find $HOME'), FIND_RULE);
   });
 
   it('find "$HOME" → DENY (quoted $HOME raw token)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json, exitCode } = await runEval('find "$HOME"');
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find "$HOME"'), FIND_RULE);
   });
 
   it('find /home/bhd unbounded → DENY', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json, exitCode } = await runEval('find /home/bhd');
-    expect(json.decision).toBe('deny');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find /home/bhd'), FIND_RULE);
   });
 
   it('find /tmp /home/bhd -maxdepth 4 -name completion.json -newermt 2026-08-23 → DENY (PID 3224795)', async () => {
     expectRuleRegistered(FIND_RULE);
     const cmd = 'find /tmp /home/bhd -maxdepth 4 -name completion.json -newermt 2026-08-23';
-    const { json, exitCode } = await runEval(cmd);
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval(cmd), FIND_RULE);
   });
 
   it('grep -rl BHD-156 ~/.hermes --include=*.db → DENY (live recursive hermes db)', async () => {
     expectRuleRegistered(GREP_RULE);
-    const { json, exitCode } = await runEval('grep -rl BHD-156 ~/.hermes --include=*.db');
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(GREP_RULE);
+    expectOpaDeny(await runEval('grep -rl BHD-156 ~/.hermes --include=*.db'), GREP_RULE);
   });
 
   it('bash -c inner find → DENY (inner program, not only bash)', async () => {
     expectRuleRegistered(FIND_RULE);
     const cmd = "bash -c 'echo hi; find /home/bhd -name goal.json -mmin -15'";
-    const { json, exitCode } = await runEval(cmd);
-    expect(json.decision).toBe('deny');
-    expect(json.action).toBe('block');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    const result = await runEval(cmd);
+    expectOpaDeny(result, FIND_RULE);
     // Inner find must be classified. GREEN may unwrap bash -c before eval;
     // matching only program=bash with no find rule is a miss.
-    expect(json.input?.raw).toContain('find');
+    expect(result.json.input?.raw).toContain('find');
   });
 
   // Adversarial extras — same deny class, different spellings.
 
   it('find ~ → DENY', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json } = await runEval('find ~');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find ~'), FIND_RULE);
   });
 
   it('find /home/bhd/ trailing slash → DENY', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json } = await runEval('find /home/bhd/');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('find /home/bhd/'), FIND_RULE);
   });
 
   it('/usr/bin/find /home/bhd → DENY (absolute program path)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json } = await runEval('/usr/bin/find /home/bhd');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('/usr/bin/find /home/bhd'), FIND_RULE);
   });
 
   it(`find ${HOME} (expanded home) → DENY`, async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json } = await runEval(`find ${HOME}`);
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval(`find ${HOME}`), FIND_RULE);
   });
 
   it('find /home/bhd/Documents/Projects -name .wt-context.json → DENY (unbounded Projects)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json } = await runEval('find /home/bhd/Documents/Projects -name .wt-context.json');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(
+      await runEval('find /home/bhd/Documents/Projects -name .wt-context.json'),
+      FIND_RULE,
+    );
   });
 
   it('export FOO=bar; find /home/bhd → DENY (compound env prefix)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json, exitCode } = await runEval('export FOO=bar; find /home/bhd');
-    expect(json.decision).toBe('deny');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(await runEval('export FOO=bar; find /home/bhd'), FIND_RULE);
   });
 
   it('grep -R foo ~/.hermes → DENY (recursive -R alias)', async () => {
     expectRuleRegistered(GREP_RULE);
-    const { json } = await runEval('grep -R foo ~/.hermes');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(GREP_RULE);
+    expectOpaDeny(await runEval('grep -R foo ~/.hermes'), GREP_RULE);
   });
 
   it('grep --recursive foo ~/.hermes → DENY', async () => {
     expectRuleRegistered(GREP_RULE);
-    const { json } = await runEval('grep --recursive foo ~/.hermes');
-    expect(json.decision).toBe('deny');
-    expect(reasonIds(json)).toContain(GREP_RULE);
+    expectOpaDeny(await runEval('grep --recursive foo ~/.hermes'), GREP_RULE);
   });
 
   it('PIOPANET_UNLOCK_ALL is not a god-key (LD-L2)', async () => {
     expectRuleRegistered(FIND_RULE);
-    const { json, exitCode } = await runEval('find /home/bhd', {
-      PIOPANET_UNLOCK_ALL: '1',
-    });
-    expect(json.decision).toBe('deny');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
+    expectOpaDeny(
+      await runEval('find /home/bhd', {
+        PIOPANET_UNLOCK_ALL: '1',
+      }),
+      FIND_RULE,
+    );
   });
 });
+
+describe.if(!SKIP_REASON)(
+  'home-wide find/grep gate — DENY home-wide prefix (BHD-202 B / BHD-197 gap 3)',
+  () => {
+    // Locked decision: home-wide means prefix, not exact home root.
+    // BHD-197 isolated-CLI ALLOWs for these subtrees — encode as DENY.
+
+    it('find /home/bhd/.ssh → DENY (home subtree, not exact root)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find /home/bhd/.ssh'), FIND_RULE);
+    });
+
+    it('find ~/.ssh → DENY (tilde spelling of .ssh subtree)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find ~/.ssh'), FIND_RULE);
+    });
+
+    it('find /home/bhd/.config → DENY (home subtree)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find /home/bhd/.config'), FIND_RULE);
+    });
+
+    it('find /home/bhd/.local → DENY (home subtree)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find /home/bhd/.local'), FIND_RULE);
+    });
+
+    it('find /home/bhd/Documents → DENY (home subtree)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find /home/bhd/Documents'), FIND_RULE);
+    });
+
+    it('find /home/bhd/Documents/Projects/bhd → DENY (home subtree under Projects)', async () => {
+      expectRuleRegistered(FIND_RULE);
+      expectOpaDeny(await runEval('find /home/bhd/Documents/Projects/bhd'), FIND_RULE);
+    });
+  },
+);
+
+describe.if(!SKIP_REASON)(
+  'home-wide find/grep gate — .worktrees maxdepth is a real gate (BHD-202 D / BHD-197 gap 4)',
+  () => {
+    it('find <repo>/.worktrees -maxdepth 99 -name .wt-context.json → DENY', async () => {
+      expectRuleRegistered(FIND_RULE);
+      const cmd = `find ${REPO}/.worktrees -maxdepth 99 -name .wt-context.json`;
+      expectOpaDeny(await runEval(cmd), FIND_RULE);
+    });
+  },
+);
 
 describe.if(!SKIP_REASON)('home-wide find/grep gate — ALLOW scoped walks', () => {
   // Precondition expectRuleRegistered makes these RED today (rule absent).
@@ -399,38 +438,32 @@ describe.if(!SKIP_REASON)('home-wide find/grep gate — unlock contract (RED unt
   it('find /home/bhd with per-rule find key → ALLOW + source opa-unlocked', async () => {
     expectRuleRegistered(FIND_RULE);
     const key = mintUnlockKey({ ruleId: FIND_RULE, saltPath });
-    const { json, exitCode } = await runEval('find /home/bhd', {
+    const result = await runEval('find /home/bhd', {
       PIOPANET_UNLOCK_KEYS: key,
       PIOPANET_UNLOCK_SALT: saltPath,
     });
-    expect(exitCode).toBe(0);
-    expect(json.decision).toBe('allow');
-    expect(json.source).toBe('opa-unlocked');
+    expectOpaUnlocked(result);
   });
 
   it('grep -rl ~/.hermes with per-rule grep key → ALLOW + source opa-unlocked', async () => {
     expectRuleRegistered(GREP_RULE);
     const key = mintUnlockKey({ ruleId: GREP_RULE, saltPath });
-    const { json, exitCode } = await runEval('grep -rl BHD-156 ~/.hermes --include=*.db', {
+    const result = await runEval('grep -rl BHD-156 ~/.hermes --include=*.db', {
       PIOPANET_UNLOCK_KEYS: key,
       PIOPANET_UNLOCK_SALT: saltPath,
     });
-    expect(exitCode).toBe(0);
-    expect(json.decision).toBe('allow');
-    expect(json.source).toBe('opa-unlocked');
+    expectOpaUnlocked(result);
   });
 
   it('stash unlock key does not bypass home-wide find (LD-L1)', async () => {
     expectRuleRegistered(FIND_RULE);
     const stashKey = mintUnlockKey({ ruleId: 'block-git-stash-mutations', saltPath });
-    const { json, exitCode } = await runEval('find /home/bhd', {
+    const result = await runEval('find /home/bhd', {
       PIOPANET_UNLOCK_KEYS: stashKey,
       PIOPANET_UNLOCK_SALT: saltPath,
     });
-    expect(json.decision).toBe('deny');
-    expect(exitCode).toBe(2);
-    expect(reasonIds(json)).toContain(FIND_RULE);
-    expect(json.source).not.toBe('opa-unlocked');
+    expectOpaDeny(result, FIND_RULE);
+    expect(result.json.source).not.toBe('opa-unlocked');
   });
 });
 
@@ -444,14 +477,12 @@ describe.if(!SKIP_REASON)('home-wide find/grep gate — fixture table', () => {
       } else {
         expectRuleRegistered(FIND_RULE);
       }
-      const { json, exitCode } = await runEval(c.command);
+      const result = await runEval(c.command);
       if (c.expect === 'deny') {
-        expect(json.decision).toBe('deny');
-        expect(exitCode).toBe(2);
-        expect(reasonIds(json)).toContain(c.rule_id as string);
+        expectOpaDeny(result, c.rule_id as string);
       } else {
-        expect(json.decision).toBe('allow');
-        expect(exitCode).toBe(0);
+        expect(result.json.decision).toBe('allow');
+        expect(result.exitCode).toBe(0);
       }
     });
   }
